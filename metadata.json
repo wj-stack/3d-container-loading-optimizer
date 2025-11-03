@@ -1,0 +1,5 @@
+{
+  "name": "3D Container Loading Optimizer",
+  "description": "A web application to calculate and visualize the optimal loading plan for cargo inside a container using a 3D interface. Input container and cargo details, and the app calculates the best packing configuration, maximizing space utilization while respecting constraints like weight and item fragility. View the result in an interactive 3D model.",
+  "requestFramePermissions": []
+}
