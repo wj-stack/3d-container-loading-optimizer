@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo } from 'react';
 import { Container, CargoItem, MultiContainerPackingResult, PackedContainer } from './types';
 import { CONTAINER_PRESETS, INITIAL_CARGO_ITEMS } from './constants';
@@ -9,6 +10,7 @@ import Visualization from './components/Visualization';
 import { packIntoMultipleContainers } from './services/packingService';
 import { PredefinedCargo } from './predefinedCargo';
 import { v4 as uuidv4 } from 'uuid';
+import FillerCargoModal from './components/FillerCargoModal';
 
 const App: React.FC = () => {
     // State now holds the quantity for each container type ID
@@ -18,9 +20,19 @@ const App: React.FC = () => {
     const [selectedResultIndex, setSelectedResultIndex] = useState<number>(0);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
+    // FIX: Changed data structure for fillerAnalysisTarget to use 'packedContainer' property
+    // for better clarity and to match usage in the modal component.
+    const [fillerAnalysisTarget, setFillerAnalysisTarget] = useState<{ packedContainer: PackedContainer; index: number } | null>(null);
 
     const hasAvailableContainers = useMemo(() => {
         return Object.values(containerQuantities).some(qty => qty > 0);
+    }, [containerQuantities]);
+
+    // Memoize the list of available container types for child components
+    const availableContainers = useMemo<Container[]>(() => {
+        return Object.keys(containerQuantities)
+            .map(id => CONTAINER_PRESETS.find(p => p.id === id))
+            .filter((c): c is Container => !!c);
     }, [containerQuantities]);
 
     const handleCalculate = useCallback(() => {
@@ -105,37 +117,29 @@ const App: React.FC = () => {
                     <div className="lg:col-span-4 space-y-8">
                         <ContainerInput containerQuantities={containerQuantities} setContainerQuantities={setContainerQuantities} />
                         <QuickAddCargo onAddItem={handleQuickAddItem} />
-                        <CargoInput cargoItems={cargoItems} setCargoItems={setCargoItems} />
-                        <div className="sticky bottom-4">
-                            <button
-                                onClick={handleCalculate}
-                                disabled={isLoading || cargoItems.length === 0 || !hasAvailableContainers}
-                                className="w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-75"
-                            >
-                                {isLoading ? (
-                                    <div className="flex items-center justify-center">
-                                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        Calculating...
-                                    </div>
-                                ) : 'Optimize Loading Plan'}
-                            </button>
-                        </div>
+                        <CargoInput cargoItems={cargoItems} setCargoItems={setCargoItems} availableContainers={availableContainers} />
+                        <button
+                            onClick={handleCalculate}
+                            disabled={isLoading || cargoItems.length === 0 || !hasAvailableContainers}
+                            className="w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-75"
+                        >
+                            {isLoading ? (
+                                <div className="flex items-center justify-center">
+                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Calculating...
+                                </div>
+                            ) : 'Optimize Loading Plan'}
+                        </button>
                     </div>
 
                     {/* Right Column: Visualization and Results */}
                     <div className="lg:col-span-8">
-                         <div className="bg-gray-800 rounded-xl shadow-2xl p-2 h-[60vh] lg:h-[calc(100vh-12rem)] sticky top-20">
+                         <div className="bg-gray-800 rounded-xl shadow-2xl p-2 h-[60vh] lg:h-[calc(100vh-12rem)]">
                            {error && <div className="absolute inset-0 bg-red-900/80 flex items-center justify-center z-10 text-white p-4 rounded-xl"><p>{error}</p></div>}
-                           {!packingResult && !isLoading && !error && (
-                               <div className="absolute inset-0 bg-gray-900/50 flex flex-col items-center justify-center z-10 text-gray-400 p-4 rounded-xl">
-                                   <p className="text-center text-lg">1. Set quantities for available container types.</p>
-                                   <p className="text-center text-lg">2. Add your cargo items.</p>
-                                   <p className="text-center text-lg">3. Click "Optimize" to find the best container mix and loading plan.</p>
-                               </div>
-                           )}
+                           
                            {packingResult && packingResult.packedContainers.length === 0 && !isLoading && (
                                 <div className="absolute inset-0 bg-gray-900/50 flex items-center justify-center z-10 text-gray-400 p-4 rounded-xl">
                                     <p className="text-center text-lg">Could not pack any items with the selected containers.</p>
@@ -143,10 +147,16 @@ const App: React.FC = () => {
                            )}
                            {memoizedVisualization}
                         </div>
-                        {packingResult && <ResultsDisplay result={packingResult} selectedIndex={selectedResultIndex} onSelectionChange={setSelectedResultIndex} />}
+                        {/* FIX: Changed data structure for fillerAnalysisTarget to use 'packedContainer' property */}
+                        {packingResult && <ResultsDisplay result={packingResult} selectedIndex={selectedResultIndex} onSelectionChange={setSelectedResultIndex} onAnalyze={(container, index) => setFillerAnalysisTarget({ packedContainer: container, index })} />}
                     </div>
                 </div>
             </main>
+            <FillerCargoModal
+                isOpen={!!fillerAnalysisTarget}
+                onClose={() => setFillerAnalysisTarget(null)}
+                packedContainerData={fillerAnalysisTarget}
+            />
         </div>
     );
 };

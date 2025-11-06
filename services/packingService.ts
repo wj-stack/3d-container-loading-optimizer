@@ -20,8 +20,8 @@ interface Box {
 export function pack(container: Container, boxesToPack: Box[], colorMap: Map<string, string>): PackingResult {
     const placedCargo: PlacedCargo[] = [];
     let totalWeight = 0;
-    let spaces: Space[] = [{ 
-        x: 0, y: 0, z: 0, 
+    let spaces: Space[] = [{
+        x: 0, y: 0, z: 0,
         length: container.length, width: container.width, height: container.height,
         supportingSurface: null // The container floor supports everything
     }];
@@ -32,18 +32,12 @@ export function pack(container: Container, boxesToPack: Box[], colorMap: Map<str
                 continue;
             }
 
-            let bestFit: { spaceIndex: number } | null = null;
-            // Sort spaces by Z (height), then Y, then X to pack from the bottom-front-left corner
-            spaces.sort((a, b) => a.z - b.z || a.y - b.y || a.x - b.x);
+            let bestFit: { space: Space; spaceIndex: number; score: number } | null = null;
 
+            // Find the best possible space for the current box based on a scoring system
             for (let i = 0; i < spaces.length; i++) {
                 const s = spaces[i];
 
-                // Rule: Small on large (base area check). Not applicable for container floor.
-                if (s.supportingSurface && (box.length > s.supportingSurface.length || box.width > s.supportingSurface.width)) {
-                    continue;
-                }
-                
                 // Rule: Carton can only be stacked on another carton. Not applicable for container floor.
                 if (box.packaging === 'carton' && s.supportingSurface && s.supportingSurface.packaging !== 'carton') {
                     continue;
@@ -51,13 +45,38 @@ export function pack(container: Container, boxesToPack: Box[], colorMap: Map<str
 
                 // Check if box fits in the current space
                 if (box.length <= s.length && box.width <= s.width && box.height <= s.height) {
-                    bestFit = { spaceIndex: i };
-                    break;
+                    
+                    // --- SCORING LOGIC FOR CLUSTERING ---
+                    // Base score prefers positions that are lower, more to the front, and more to the left.
+                    // We use a large constant and subtract to give higher scores to better positions.
+                    let score = 1000000000 - (s.z * 10000 + s.y * 100 + s.x);
+
+                    // Bonus for placing on top of an identical item (stacking)
+                    if (s.supportingSurface && s.supportingSurface.itemId === box.id) {
+                        score += 3000000000; // Strong preference for stacking
+                    }
+
+                    // Bonus for being adjacent to an identical item on the same level
+                    const isAdjacent = placedCargo.some(p =>
+                        p.id === box.id && p.z === s.z && (
+                           (p.x + p.length === s.x && p.y === s.y && p.height >= box.height) || // right neighbor
+                           (p.y + p.width === s.y && p.x === s.x && p.height >= box.height)    // back neighbor
+                        )
+                    );
+                    
+                    if (isAdjacent) {
+                        score += 1500000000; // Good preference for horizontal clustering
+                    }
+                    // --- END OF SCORING LOGIC ---
+                    
+                    if (!bestFit || score > bestFit.score) {
+                        bestFit = { space: s, spaceIndex: i, score: score };
+                    }
                 }
             }
             
             if (bestFit) {
-                const space = spaces[bestFit.spaceIndex];
+                const space = bestFit.space;
                 
                 placedCargo.push({
                     ...box, x: space.x, y: space.y, z: space.z,
@@ -67,7 +86,7 @@ export function pack(container: Container, boxesToPack: Box[], colorMap: Map<str
 
                 spaces.splice(bestFit.spaceIndex, 1);
                 
-                const placedBoxSurface = { length: box.length, width: box.width, packaging: box.packaging };
+                const placedBoxSurface = { itemId: box.id, length: box.length, width: box.width, packaging: box.packaging };
 
                 // Create new space to the right
                 if (space.length - box.length > 0) {
@@ -104,6 +123,7 @@ export function pack(container: Container, boxesToPack: Box[], colorMap: Map<str
         volumeUtilization: isFinite(volumeUtilization) ? volumeUtilization : 0,
         weightUtilization: isFinite(weightUtilization) ? weightUtilization : 0,
         totalWeight,
+        remainingSpaces: spaces,
     };
 }
 

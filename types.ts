@@ -43,6 +43,7 @@ export interface PackingResult {
     volumeUtilization: number; // percentage
     weightUtilization: number; // percentage
     totalWeight: number;
+    remainingSpaces: Space[];
 }
 
 export interface Space {
@@ -54,6 +55,7 @@ export interface Space {
     height: number;
     // Information about the surface this space rests on, for advanced stacking rules
     supportingSurface: {
+        itemId: string | null; // ID of the item underneath, null for container floor
         length: number;
         width: number;
         packaging: PackagingType;
@@ -70,4 +72,26 @@ export interface PackedContainer {
 export interface MultiContainerPackingResult {
     packedContainers: PackedContainer[];
     unplacedCargo: CargoItem[];
+}
+
+// Types for the new bundling feature with permutations
+
+export interface Permutation {
+  layout: { x: number; y: number; z: number };
+  finalDims: { length: number; width: number; height: number };
+}
+
+export interface BundlingConfiguration {
+  baseFactors: [number, number, number];
+  permutations: Permutation[];
+  itemCount: number;
+}
+
+// Types for the filler cargo feature
+export interface FillerOption {
+    item: Omit<CargoItem, 'id' | 'quantity'>;
+    placedFillerCargo: PlacedCargo[];
+    quantity: number;
+    addedWeight: number;
+    addedVolumeUtilization: number;
 }

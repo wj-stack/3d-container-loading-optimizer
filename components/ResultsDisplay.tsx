@@ -1,14 +1,16 @@
 import React from 'react';
-import { MultiContainerPackingResult } from '../types';
+import { MultiContainerPackingResult, PackedContainer } from '../types';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
+import { Button } from './ui/Button';
 
 interface ResultsDisplayProps {
     result: MultiContainerPackingResult | null;
     selectedIndex: number;
     onSelectionChange: (index: number) => void;
+    onAnalyze: (packedContainer: PackedContainer, index: number) => void;
 }
 
-const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, selectedIndex, onSelectionChange }) => {
+const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, selectedIndex, onSelectionChange, onAnalyze }) => {
     if (!result) return null;
 
     const selectedPackedContainer = result.packedContainers[selectedIndex];
@@ -90,6 +92,11 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, selectedIndex, 
                                             ))}
                                         </ul>
                                     </div>
+                                </div>
+                                <div className="pt-2">
+                                    <Button variant="outline" onClick={() => onAnalyze(selectedPackedContainer, selectedIndex)} className="w-full sm:w-auto">
+                                        Analyze Remaining Space
+                                    </Button>
                                 </div>
                             </div>
                         )}
